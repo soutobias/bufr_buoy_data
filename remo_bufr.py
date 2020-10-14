@@ -13,13 +13,19 @@ import csv
 import numpy
 import math
 from datetime import datetime, timedelta
-from netCDF4 import Dataset, num2date
 from xml.dom import minidom
-from urllib2 import urlopen
 from struct import pack #@UnresolvedImport
 from bitShift import *
 
-lines = open('C:\\ndbc\\bufr\\4604232014_test.txt', 'rb')
+wmoId = 46042
+name = 'remobs01'
+buoy_type = 18 #3M Discus
+h_sensor_atmp = 4
+h_sensor_wind = 10
+windavg=8
+
+
+lines = open('4604232014_test.txt', 'rb')
 
 #read in the first 2 lines
 ASCIIs = lines.readline()
@@ -34,7 +40,7 @@ Mwd,Pres,Atmp,Wtmp,Dewp,Humi,Tide, Lat,Lon = [],[],[],[],[],[],[],[],[]
 for line in lines:
     dataline = line.strip()
     columns = dataline.split()
-    
+
 
     Year=int(columns[0])
     Month=int(columns[1])
@@ -57,17 +63,17 @@ for line in lines:
     Lat=float(columns[18])
     Lon=float(columns[19])
 
-lines.close()  
+lines.close()
 
 print('done reading in data')
 
-############################################################    
+############################################################
 #
 #
 #   BUFR SECTION 1
 #
 #
-############################################################   
+############################################################
 
 
 bufrSection1List = []
@@ -76,535 +82,288 @@ bufrSection1 = None
 
 # Octect 4
 # BUFR master table (zero if standard WMO FM 94 BUFR tables are used)
-bufrSection1List.append(pack("B", 0))
+bufrSection1List.append(np.binary_repr(0, 8))
 
-# Octect 5-6    
-# Identification of originating/generating centre 
+# Octect 5
+# Identification of originating/generating sub-centre
 # (see Common Code table C-11)
-# US National Weather Service - Other
-bufrSection1List.append(pack(">H", 146))
+# CHM - Other
+bufrSection1List.append(np.binary_repr(0, 8))
 
-# Octect 7-8
-# Identification of originating/generating sub-centre 
-# (allocated by originating/generating centre - see Common Code table C-12)
-bufrSection1List.append(pack(">H", 0))
+# Octect 6
+# Identification of originating/generating centre
+# (see Common Code table C-11)
+# CHM - Other
+bufrSection1List.append(np.binary_repr(146, 8))
 
-# Octect 9        
+# Octect 7
 # Update sequence number (zero for original BUFR message)
-bufrSection1List.append(pack("B", 0))
+bufrSection1List.append(np.binary_repr(0, 8))
 
-# Octect 10        
+# Octect 8
 # Code for presence of optional section (2), 0=Not present
-bufrSection1List.append("\x00")
+bufrSection1List.append(np.binary_repr(0, 8))
 
-# Octect 11        
+# Octect 9
 # Code for Data Category (1=Surface Data-Sea)
-bufrSection1List.append(pack("B", 1))
+bufrSection1List.append(np.binary_repr(1, 8))
 
-# Octect 12        
-# Code for International data sub-category (3=Moored Buoy)
-bufrSection1List.append(pack("B", 3))
+# Octect 10
+# Code for International data sub-category (25=buoy observations)
+bufrSection1List.append(np.binary_repr(25, 8))
 
-# Octect 13        
-# Code for local data sub-category (??????)
-bufrSection1List.append(pack("B", 3))
+# Octect 11
+# Version number of master table (18=Version implemented on May 2012)
+bufrSection1List.append(np.binary_repr(18, 8))
 
-# Octect 14
-# Version number of master table (21=Version implemented on May 2013)
-bufrSection1List.append(pack("B", 19))
-
-# Octect 15
+# Octect 12
 # Version number of local tables
-bufrSection1List.append(pack("B", 0))
+bufrSection1List.append(np.binary_repr(0, 8))
 
-
-# Octect 16-22
+# Octect 13-17
 # Data and time of the measurement)
 
-# Octect 16-17 (Year - 4 digits)
-bufrSection1List.append(pack(">H", Year))
-# Octect 18 (Month)
-bufrSection1List.append(pack("B", Month))
-# Octect 19 (Day)
-bufrSection1List.append(pack("B", Day))
-# Octect 20 (Hour)
-bufrSection1List.append(pack("B", Hour))
-# Octect 21 (Minute)
-bufrSection1List.append(pack("B", Minute))
-# Octect 22 (Seconds)
-bufrSection1List.append(pack("B", 0))
+# Octect 13 (Year - of the century)
+bufrSection1List.append(np.binary_repr(Year - 2000, 8))
+# Octect 14 (Month)
+bufrSection1List.append(np.binary_repr(Month, 8))
+# Octect 15 (Day)
+bufrSection1List.append(np.binary_repr(Day, 8))
+# Octect 16 (Hour)
+bufrSection1List.append(np.binary_repr(Hour, 8))
+# Octect 17 (Minute)
+bufrSection1List.append(np.binary_repr(Minute, 8))
+
+# Octect 18 - shall be included and set to zero
+bufrSection1List.append(np.binary_repr(0, 8))
 
 
 #Octets 1-3
 # Length of the section 1
 tmpString = "".join(bufrSection1List)
-bufrSection1Length = len(tmpString) + 3
+bufrSection1Length = int(len(tmpString)/8 + 3)
 
 print('bufrSection1Length')
 print(bufrSection1Length)
 
 # 'L' generates a 4-byte integer, but only need 3 bytes of it
-bufrSection1 = "%s%s" % ((pack(">L", bufrSection1Length)[1:]), tmpString)
+bufrSection1 = "%s%s" % (np.binary_repr(bufrSection1Length, 8 * 3), tmpString)
 
 
-############################################################    
+############################################################
 #
 #
 #   BUFR SECTION 3
 #
 #
-############################################################   
+############################################################
 
 
 bufrSection3List = []
 bufrSection3 = None
 
 # Octect 4
-# Set to zero (reserved)   
-bufrSection3List.append(pack("B", 0))
+# Set to zero (reserved)
+bufrSection3List.append(np.binary_repr(0, 8))
 
 # Octect 5-6
-# Number of data subsets         
-bufrSection3List.append(pack(">H", 1))
+# Number of data subsets
+bufrSection3List.append(np.binary_repr(1, 16))
 
 # Octect 7
-# Observed data (Bit1=1), uncompressed (Bit2=0), Bit3-8=0 (reserved). 10000000=128     
-bufrSection3List.append(pack("B", 128)) 
-
+# Observed data (Bit1=1), uncompressed (Bit2=0), Bit3-8=0 (reserved). 10000000=128
+bufrSection3List.append(np.binary_repr(128, 8))
 
 #############################
 
 # Octect 8-9
-bufrSection3List.append(pack("BB", 1, 87))      # 001087
-
-
-# Octect 10-11
-bufrSection3List.append(pack("BB", 1, 15))      # 001015
-
-
-# Octect 12-13
-bufrSection3List.append(pack("BB", 2, 149))      # 002149
-
-#############################
-# Octect 14-15
-# Date
-fx = (3 * 2**6) + 1 #=193 (decimal)=11000001 (binary)
-bufrSection3List.append(pack("BB", fx, 11))      # 301011
-
-# Octect 16-17
-# Time
-fx = (3 * 2**6) + 1 #=193 (decimal)=11000001 (binary)
-bufrSection3List.append(pack("BB", fx, 12))      # 301012
-
-# Octect 18-19
-# Latitude and longitude (high accuracy)
-fx = (3 * 2**6) + 1 #=193 (decimal)=11000001 (binary)
-bufrSection3List.append(pack("BB", fx, 21))      # 301021
-
-#################################################################
-
-# Octect 20-21
-# pressure
-bufrSection3List.append(pack("BB", 10, 4))      # 010004
-
-# Octect 22-23
-# pressure mean sea level
-bufrSection3List.append(pack("BB", 10, 51))      # 010051
-
-# Octect 24-25
-# height of sensor above sea water
-bufrSection3List.append(pack("BB", 7, 33))      # 007033
-
-# Octect 26-27
-# air temp
-bufrSection3List.append(pack("BB", 12, 101))      # 012101
-
-# Octect 30-31
-# umidade
-bufrSection3List.append(pack("BB", 13, 3))      # 013003
-
-# Octect 32-33
-# height of sensor above sea water
-bufrSection3List.append(pack("BB", 7, 33))      # 007033
-
-# Octect 34-35
-# time signifance
-bufrSection3List.append(pack("BB", 8, 21))      # 008021
-
-# Octect 36-37
-# time period of displacement
-bufrSection3List.append(pack("BB", 4, 25))      # 004025
-
-# Octect 38-39
-# wind direction
-bufrSection3List.append(pack("BB", 11, 1))      # 011001
-
-# Octect 40-41
-# wind speed
-bufrSection3List.append(pack("BB", 11, 2))      # 011002
-
-# Octect 42-43
-# Sequence for STDMET measurements from moored buoys
-bufrSection3List.append(pack("BB", 8, 21))      # 008021
-
-# Octect 44-45
-# Sequence for STDMET measurements from moored buoys
-bufrSection3List.append(pack("BB", 4, 25))      # 004025
-
-# Octect 46-47
-# Sequence for STDMET measurements from moored buoys
-bufrSection3List.append(pack("BB", 11, 41))      # 011041
-
-# Octect 48-49
-# Sequence for STDMET measurements from moored buoys
-bufrSection3List.append(pack("BB", 4, 24))      # 004025
-
-# Octect 50-51
-# Sequence for STDMET measurements from moored buoys
-bufrSection3List.append(pack("BB", 7, 33))      # 007033
-
-# Octect 52-53
-# Sequence for STDMET measurements from moored buoys
-bufrSection3List.append(pack("BB", 2, 5))      # 002005
-
-# Octect 54-55
-# Sequence for STDMET measurements from moored buoys
-bufrSection3List.append(pack("BB", 7, 63))      # 007063
-
-# Octect 56-57
-# Sequence for STDMET measurements from moored buoys
-bufrSection3List.append(pack("BB", 22, 49))      # 022049
-
-#################################################################
-
-# Commented. It has same parameters absent in the STDMET file: spread, Wmax, Wave direction of dominant wave
-#        # Octect 18-19
-#        # Sequence for representation of basic wave measurements
-#        fx = (3 * 2**6) + 6 #=198 (decimal)=11000110 (binary)
-#        bufrSection3List.append(pack("BB", fx, 21))      # 306038
-
-# Octect 58-59
-# Duration of wave record
-bufrSection3List.append(pack("BB", 22, 78))      # 022078
-
-# Octect 60-61        
-# Significant wave height
-bufrSection3List.append(pack("BB", 22, 70))      # 022070
-
-# Octect 62-63        
-# Average wave period
-bufrSection3List.append(pack("BB", 22, 74))      # 022074       
-
-# Octect 64-65
-# Spectral peak wave period
-bufrSection3List.append(pack("BB", 22, 71))      # 022071       
-
-# Octect 66-67
-# Mean Wave direction
-bufrSection3List.append(pack("BB", 22, 86))      # 022086       
+bufrSection3List.append(np.binary_repr(3, 2))
+bufrSection3List.append(np.binary_repr(15, 6))
+bufrSection3List.append(np.binary_repr(8, 8)) # 3 15 008
 
 
 tmpString = "".join(bufrSection3List)
-bufrSection3Length = len(tmpString) + 3
+bufrSection3Length = int(len(tmpString)/8 + 3)
+
 print('bufrSection3Length')
 print(bufrSection3Length)
 
 # 'L' generates a 4-byte integer, but only need 3 bytes of it
-bufrSection3 = "%s%s" % ((pack(">L", bufrSection3Length)[1:]), tmpString)
+bufrSection3 = "%s%s" % (np.binary_repr(bufrSection3Length, 8 * 3), tmpString)
 
 
-
-############################################################    
+############################################################
 #
 #
 #   BUFR SECTION 4
 #
 #
-############################################################    
+############################################################
 
 bufrSection4List = []
 bufrSection4 = None
 excMessage = None
 
-############################################################    
-############################################################ 
-# 301087  - Moored Buoy ID {includes subsets}    
-############################################################    
-############################################################ 
+############################################################
+############################################################
+# 301087  - Moored Buoy ID {includes subsets}
+############################################################
+############################################################
 
 
 ############################################################
 # 001087 - WMO Marine Observing platform extended identifier
 # Numeric 23 bits
-wmoIdNum = 0
-
-WMO_ID = 46042
-
-# TODO: Is this the correct WMO number for the buoy?
-
-wmoIdNum = int(WMO_ID) * (2**(32-23))  # bits 32-24 are empty
-
-# Pack WmoId into 3 bytes
-wmoIdPacked = pack(">I", wmoIdNum)
-
-# Store 2 bytes and save the third for the empty bits
-bufrSection4List.append(wmoIdPacked[0:2])
-unfilledByte = wmoIdPacked[2]
-# Bits filled: 1111 1110
-
+bufrSection4List.append(np.binary_repr(wmoid, 23))
 
 ############################################################
 # 001015 - Station or Site Name
 # 160 bits (20 bytes)
-
-# TODO: Is this the correct Station Name for the buoy?
-
-model="monterey"
-
-l = len(model)
-    
-# check if too short or long
-if l > 20:
-    model = model[0:21]
-elif l < 20:
-    # pad with spaces
-    model = model + chr(32) * (20 - l)
-
-(string, unfilledByte, unfilledByteBits) = bitShift(unfilledByte, 7, model, 160)
-bufrSection4List.append(string)
-# Bits filled: 1111 1110
-
+bufrSection4List.append(np.binary_repr(name, 160))
 
 ############################################################
 # 002149 - Type of data buoy
 # 6 bits - 18 = 3-metre Discus
-typeBuoy = chr(18 << (8-6))  # Decimal 18, left shifted 2 bits
-(string, unfilledByte, unfilledByteBits) = bitShift(unfilledByte, unfilledByteBits, typeBuoy, 6)
-bufrSection4List.append(string)
+bufrSection4List.append(np.binary_repr(buoy_type, 6))
+
 # Bits filled: 1111 1000
 
 
 
-############################################################    
-############################################################ 
-# 301011  - Date {includes subsets}    
-############################################################    
-############################################################ 
+############################################################
+############################################################
+# 301011  - Date {includes subsets}
+############################################################
+############################################################
 
 ############################################################
 # 004001  - Year (12 bits)
 # 004002  - Month (4 bits)
 # 004003  - Day   (6 bits)
-year = Year * 2 ** 20       # bits 31-21    
-month = Month * 2 ** 16     # bits 20-16
-day = Day * 2 ** 10         # bits 15-10
+bufrSection4List.append(np.binary_repr(Year, 12))
+bufrSection4List.append(np.binary_repr(Month, 4))
+bufrSection4List.append(np.binary_repr(Day, 6))
 
-# Pack into 4-character string as unsigned integer (big-endian)
-string = pack(">I", (year | month | day))
-print 'Dbg|string-',":".join("{0:x}".format(ord(c)) for c in string)
-(string, unfilledByte, unfilledByteBits) = bitShift(unfilledByte, unfilledByteBits, string, 22)
-bufrSection4List.append(string)
-# Bits filled: 1110 0000
-
-
-
-############################################################    
-############################################################ 
-# 301012  - Time {includes subsets}    
-############################################################    
-############################################################ 
+############################################################
+############################################################
+# 301012  - Time {includes subsets}
+############################################################
+############################################################
 
 ############################################################
 # 004004  - Hour (5 bits)
 # 004005  - Minute (6 bits)
-hour = Hour * 2 **11      # bits 15-11    
-minute = Minute * 2 ** 5    # bits 10-5
-string = pack(">H", (hour | minute))
-(string, unfilledByte, unfilledByteBits) = bitShift(unfilledByte, unfilledByteBits, string, 11)
-bufrSection4List.append(string)
+bufrSection4List.append(np.binary_repr(Hour, 5))
+bufrSection4List.append(np.binary_repr(Minute, 6))
+
 # Bits filled: 1111 1100
 
 
 
-############################################################    
-############################################################ 
+############################################################
+############################################################
 # 301021  - Latitude & longitude (high accuracy) {includes subsets}
-############################################################    
-############################################################ 
+############################################################
+############################################################
 
-############################################################    
+############################################################
 # 005001  - Latitude (25 bits) (scale 5, reference value -9000000)
 # 006001  - Longitude (26 bits) (scale 5, reference value -18000000)
 
-latScaled = (int(Lat * 10 ** 5) + 9000000)<< (32-25) # bits 26-32 are empty
-lonScaled = (int(Lon * 10 ** 5) + 18000000)<< (32-26) # bits 27-32 are empty
-print 'latitude=', Lat, 'latScaled=', latScaled
-print 'longitude=', Lon, 'lonScaled=', lonScaled
+latScaled = (int(Lat * 10 ** 5) + 9000000) # bits 26-32 are empty
+lonScaled = (int(Lon * 10 ** 5) + 18000000) # bits 27-32 are empty
+print ('latitude=', Lat, 'latScaled=', latScaled)
+print ('longitude=', Lon, 'lonScaled=', lonScaled)
 
-string = pack(">I", latScaled)
-(string, unfilledByte, unfilledByteBits) = bitShift(unfilledByte, unfilledByteBits, string, 25)
-bufrSection4List.append(string)
-# Bits filled: 1111 1110
+bufrSection4List.append(np.binary_repr(latScaled, 25))
+bufrSection4List.append(np.binary_repr(lonScaled, 26))
 
-string = pack(">I", lonScaled)
-(string, unfilledByte, unfilledByteBits) = bitShift(unfilledByte, unfilledByteBits, string, 26)
-bufrSection4List.append(string)
-# Bits filled: 1000 0000
-
-
-   
-############################################################    
-############################################################    
+############################################################
+############################################################
 # 306038  - STDMET for Moored Buoys {includes subsets}
-############################################################    
-############################################################    
+############################################################
+############################################################
 
-############################################################ 
-# 010004  - Pressure (14 bits) (scale -1, and units in Pa)
+############################################################
+# 010004  - Pressure (14 bits) (scale -1, and units in Pa (mb * 100))
+# Null = 0
+bufrSection4List.append(np.binary_repr(0, 14))
+
+
 # 010051  - Pressure at sea-level (14 bits) (scale -1, and units in Pa)
+bufrSection4List.append(np.binary_repr(Pres * 100 * 0.1, 14))
 
-# TODO: For 3-metre buoy, are Pres and Pres SL the same?
-
-PresScaled = (int(Pres*100*10**-1))* 2 ** 18 # bits 31-18
-PresslScaled = (int(Pres*100*10**-1))* 2 ** 4 # bits 17-04
-string = pack(">I", (PresScaled | PresslScaled))
-(string, unfilledByte, unfilledByteBits) = bitShift(unfilledByte, unfilledByteBits, string, 28)
-bufrSection4List.append(string)
-# Bits filled: 1111 1000
-
-
-############################################################ 
+############################################################
 # 007033  - Height Atmp Sensor Above Water (12 bits) (scale 1, m)
 
 # TODO: Value obtained from the NDBC website
+bufrSection4List.append(np.binary_repr(h_sensor_atmp * 10, 12))
 
-Hsensor=4
-HsensorScaled = int(Hsensor*10**1)<<(16-12) # bits 13-16 are empty
-
-string = pack(">H", HsensorScaled)
-(string, unfilledByte, unfilledByteBits) = bitShift(unfilledByte, unfilledByteBits, string, 12)
-bufrSection4List.append(string)
-# Bits filled: 1000 0000
-
-
-############################################################ 
+############################################################
 # 012101  - Air Temperature (16 bits) (scale 2, K)
+bufrSection4List.append(np.binary_repr(int(Atmp * 10**2)+273, 16))
+
 # 012103  - Dew Point (16 bits) (scale 2, K)
-
-AtmpScaled = (int(Atmp*10**2)+273)* 2 ** 16 # bits 31-16
-DewpScaled = (int(Pres*10**2)+273)* 2 ** 0 # bits 15-0
-
-string = pack(">I", (AtmpScaled | DewpScaled))
-(string, unfilledByte, unfilledByteBits) = bitShift(unfilledByte, unfilledByteBits, string, 32)
-bufrSection4List.append(string)
-# Bits filled: 1000 0000
+bufrSection4List.append(np.binary_repr(int(Dewp * 10**2)+273, 16))
 
 
-############################################################ 
+############################################################
 # 013103  - Relative Humidity (7 bits) (scale 0, %)
+bufrSection4List.append(np.binary_repr(Humi, 7))
 
-HumiScaled = int(Humi*10**0)<<(8-7)
-
-string = pack("B", HumiScaled)
-(string, unfilledByte, unfilledByteBits) = bitShift(unfilledByte, unfilledByteBits, string, 7)
-bufrSection4List.append(string)
-# Bits filled: 0000 0000
-
-
-############################################################ 
+############################################################
 # 007033  - Height Wind Sensor Above Water (12 bits) (scale 1, m)
+bufrSection4List.append(np.binary_repr(int(h_sensor_wind * 10**1), 12))
 
-# TODO: Value obtained from the NDBC website
-
-Hsensor=5
-HsensorScaled = int(Hsensor*10**1)<<(16-12) # bits 13-16 are empty
-
-string = pack(">H", HsensorScaled)
-(string, unfilledByte, unfilledByteBits) = bitShift(unfilledByte, unfilledByteBits, string, 12)
-bufrSection4List.append(string)
-# Bits filled: 1111 0000
-
-
-############################################################ 
+############################################################
 # 008021  - Time Significance (5 bits) (scale 1, m)
+bufrSection4List.append(np.binary_repr(2, 5))
 
-string = pack("B", 2 << (8-5)) # Decimal 2 (Time Average), left shifted 3 bits
-(string, unfilledByte, unfilledByteBits) = bitShift(unfilledByte, unfilledByteBits, typeBuoy, 5)
-bufrSection4List.append(string)
-# Bits filled: 1000 0000
-
-
-############################################################ 
+############################################################
 # 004025  - Time Period of Displacement (12 bits) (scale 0, minute, reference=-2048)
+windavgScaled = (int(windavg) + 2048)
+bufrSection4List.append(np.binary_repr(windavgScaled, 12))
 
-# TODO: I read on NDBC website that the time average for Wspd is 8 minutes
-
-windavg=8
-windavgScaled = (int(windavg) + 2048)<<(16-12) # bits 13-16 are empty
-
-string = pack(">H", windavgScaled)
-(string, unfilledByte, unfilledByteBits) = bitShift(unfilledByte, unfilledByteBits, string, 12)
-bufrSection4List.append(string)
-# Bits filled: 1111 1000
-
-
-############################################################ 
+############################################################
 # 011001  - Wind Direction (9 bits) (scale 0, degree)
+bufrSection4List.append(np.binary_repr(wdir, 9))
 
-WdirScaled = int(Wdir*10**0)<<(16-9) # bits 10-16 are empty
-
-string = pack(">H", WdirScaled)
-(string, unfilledByte, unfilledByteBits) = bitShift(unfilledByte, unfilledByteBits, string, 9)
-bufrSection4List.append(string)
-# Bits filled: 1111 1100
-
-
-############################################################ 
+############################################################
 # 011002  - Wind Speed (12 bits) (scale 1, m/s)
+bufrSection4List.append(np.binary_repr(wspd * 10, 12))
 
-WspdScaled = int(Wspd*10**1)<<(16-12) # bits 13-16 are empty
-
-string = pack(">H", WspdScaled)
-(string, unfilledByte, unfilledByteBits) = bitShift(unfilledByte, unfilledByteBits, string, 12)
-bufrSection4List.append(string)
-# Bits filled: 1100 0000
-
-############################################################ 
+############################################################
 # 008021  - Time Significance (5 bits) (scale 1, m)
 # Set to missing to cancel the previous value (=31)
+bufrSection4List.append(np.binary_repr(2, 5))
 
-# TODO: Missing value or not????????????
-
-string = pack("B", 31 << (8-5)) # Decimal 31 (Missing), left shifted 3 bits
-(string, unfilledByte, unfilledByteBits) = bitShift(unfilledByte, unfilledByteBits, typeBuoy, 5)
-bufrSection4List.append(string)
-# Bits filled: 1000 0000
-
-############################################################ 
+############################################################
 # 004025  - Time Period of Displacement (12 bits) (scale 0, minute, reference=-2048)
+windavgScaled = (int(windavg) + 2048)
+bufrSection4List.append(np.binary_repr(windavgScaled, 12))
 
-# TODO: Do I have to use the same value for the wind speed?
-
-windavg=8
-windavgScaled = (int(windavg) + 2048)<<(16-12) # bits 13-16 are empty
-
-string = pack(">H", windavgScaled)
-(string, unfilledByte, unfilledByteBits) = bitShift(unfilledByte, unfilledByteBits, string, 12)
-bufrSection4List.append(string)
 # Bits filled: 1111 1000
 
-############################################################ 
+############################################################
 # 011041  - Maximum Gust Speed (12 bits) (scale 1, m/s)
-
-GustScaled = int(Gust*10**1)<<(16-12) # bits 13-16 are empty
-
-string = pack(">H", GustScaled)
-(string, unfilledByte, unfilledByteBits) = bitShift(unfilledByte, unfilledByteBits, string, 12)
-bufrSection4List.append(string)
-# Bits filled: 1000 0000
+bufrSection4List.append(np.binary_repr(Gust * 10, 12))
 
 
-############################################################ 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+############################################################
 # 004025  - Time Period of Displacement (12 bits) (scale 0, minute, reference=-2048)
 # Set to missing (=0 min)
 
@@ -619,7 +378,7 @@ bufrSection4List.append(string)
 # Bits filled: 1111 1000
 
 
-############################################################ 
+############################################################
 # 007033  - Height Wind Sensor Above Water (12 bits) (scale 1, m)
 # Set to missing (=0 m) ????????? Use insted 5 meters
 
@@ -634,7 +393,7 @@ bufrSection4List.append(string)
 # Bits filled: 1000 0000
 
 
-############################################################ 
+############################################################
 # 002005  - Precision of Temperature (7 bits) (scale 2, K)
 
 # TODO: I tried to find the temperature precision, but I couldn't find it
@@ -647,7 +406,7 @@ string = pack("B", WtmpPrecScaled)
 bufrSection4List.append(string)
 # Bits filled: 0000 0000
 
-############################################################ 
+############################################################
 # 007063  - Depth Below Sea/Water Surface (20 bits) (scale 2, m)
 
 # TODO: Value obtained from the NDBC website
@@ -660,7 +419,7 @@ string = pack(">I", DepthScaled)
 bufrSection4List.append(string)
 # Bits filled: 1111 0000
 
-############################################################ 
+############################################################
 # 022049  - Sea-surface Temperature (15 bits) (scale 2, K)
 
 WtmpScaled = int((Wtmp+273)*10**2)<< (16-15) # bit 16 is empty
@@ -671,13 +430,13 @@ bufrSection4List.append(string)
 # Bits filled: 1110 0000
 
 
-############################################################    
-############################################################    
+############################################################
+############################################################
 # Wave Measurements
-############################################################    
-############################################################    
+############################################################
+############################################################
 
-############################################################ 
+############################################################
 # 022078  - Duration/Length of Wave Record (12 bits) (scale 0, seconds)
 
 # TODO: Value obtained from the NDBC website
@@ -691,7 +450,7 @@ bufrSection4List.append(string)
 # Bits filled: 1111 1110
 
 
-############################################################ 
+############################################################
 # 022070  - Significant wave height (13 bits) (scale 2, meters)
 
 WvhtScaled = int(Wvht*10**2)<< (16-13)  # bits 14-16 are empty
@@ -702,7 +461,7 @@ bufrSection4List.append(string)
 # Bits filled: 1111 0000
 
 
-############################################################ 
+############################################################
 # 022074  - Average wave period (9 bits) (scale 1, seconds)
 
 ApdScaled = int(Apd*10**1)<< (16-9)  # bits 10-16 are empty
@@ -713,7 +472,7 @@ bufrSection4List.append(string)
 # Bits filled: 1111 1000
 
 
-############################################################ 
+############################################################
 # 022071  - Spectral peak wave period (9 bits) (scale 1, seconds)
 
 DpdScaled = int(Dpd*10**1)<< (16-9)  # bits 10-16 are empty
@@ -724,7 +483,7 @@ bufrSection4List.append(string)
 # Bits filled: 1111 1100
 
 
-############################################################ 
+############################################################
 # 022086  - Mean Direction from which waves are coming (9 bits) (scale 0, degree)
 
 MwdScaled = int(Mwd*10**0)<< (16-9)  # bits 10-16 are empty
@@ -734,11 +493,11 @@ string = pack(">H", MwdScaled)
 bufrSection4List.append(string)
 # Bits filled: 1111 1110
 
-# Add any leftover bits to the output (as full Byte) 
+# Add any leftover bits to the output (as full Byte)
 if unfilledByteBits > 0:
     bufrSection4List.append(unfilledByte)
-        
-        
+
+
 tmpString = "".join(bufrSection4List)
 
 # Only 3 bytes are good for length, so shift 8 bits
@@ -749,14 +508,14 @@ bufrSection4 = "%s%s" % ((pack(">I", bufrSection4Length)), tmpString)
 
 #######################################################################
 #  Function name:      buildBufrMessage
-#    
+#
 #  Purpose:            To build a BUFR message for a specific profile
-#    
+#
 #  Input variables:    NetCDF (netCDF4.Dataset)
 #                      Profile Number (numpy.int16)
-#    
+#
 #  Output variables:   String containing the BUFR message.
-#    
+#
 #  Notes:              None.
 #######################################################################
 
@@ -765,13 +524,13 @@ bufrMessage = []
 bufrMessage.append(bufrSection1)
 bufrMessage.append(bufrSection3)
 bufrMessage.append(bufrSection4)
-   
+
 
 # Section 5
 bufrMessage.append('7777')
 bufrString="".join(bufrMessage)
 bufrMessageLength = len(bufrString) + 8
-     
+
 # Calculate full size of message
 totalMessageSize = bufrMessageLength + 21  # Add 21 for GTS Headers
 
@@ -781,9 +540,9 @@ totalMessageSize = bufrMessageLength + 21  # Add 21 for GTS Headers
 bufrSection0List=[]
 
 bufrSection0List.append(pack("B",66)) # letter B
-bufrSection0List.append(pack("B",85)) # letter U
+bufrSection0List.append(pack("B", 85)) # letter U
 bufrSection0List.append(pack("B",70)) # letter F
-bufrSection0List.append(pack("B",82)) # letter R
+bufrSection0List.append(pack("B", 82)) # letter R
 
 bufrSection0List.append((pack(">L", bufrMessageLength))[1:])  # include the length of the total GTS Message
 
