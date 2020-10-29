@@ -20,9 +20,13 @@ from bitShift import *
 wmoId = 46042
 name = 'remobs01'
 buoy_type = 18 #3M Discus
+h_sensor_pres = 0
 h_sensor_atmp = 4
-h_sensor_wind = 10
-windavg=8
+h_sensor_wind = 4.7
+windavg=10
+WtmpPrec=0.01
+Depth_atmp =0.7 #meters
+Duration_wave=1200
 
 
 lines = open('4604232014_test.txt', 'rb')
@@ -210,7 +214,6 @@ excMessage = None
 ############################################################
 ############################################################
 
-
 ############################################################
 # 001087 - WMO Marine Observing platform extended identifier
 # Numeric 23 bits
@@ -227,8 +230,6 @@ bufrSection4List.append(np.binary_repr(name, 160))
 bufrSection4List.append(np.binary_repr(buoy_type, 6))
 
 # Bits filled: 1111 1000
-
-
 
 ############################################################
 ############################################################
@@ -257,8 +258,6 @@ bufrSection4List.append(np.binary_repr(Hour, 5))
 bufrSection4List.append(np.binary_repr(Minute, 6))
 
 # Bits filled: 1111 1100
-
-
 
 ############################################################
 ############################################################
@@ -289,15 +288,14 @@ bufrSection4List.append(np.binary_repr(lonScaled, 26))
 # Null = 0
 bufrSection4List.append(np.binary_repr(0, 14))
 
-
 # 010051  - Pressure at sea-level (14 bits) (scale -1, and units in Pa)
 bufrSection4List.append(np.binary_repr(Pres * 100 * 0.1, 14))
 
 ############################################################
-# 007033  - Height Atmp Sensor Above Water (12 bits) (scale 1, m)
+# 007033  - Height pres Sensor Above Water (12 bits) (scale 1, m)
 
 # TODO: Value obtained from the NDBC website
-bufrSection4List.append(np.binary_repr(h_sensor_atmp * 10, 12))
+bufrSection4List.append(np.binary_repr(h_sensor_pres * 10, 12))
 
 ############################################################
 # 012101  - Air Temperature (16 bits) (scale 2, K)
@@ -306,14 +304,13 @@ bufrSection4List.append(np.binary_repr(int(Atmp * 10**2)+273, 16))
 # 012103  - Dew Point (16 bits) (scale 2, K)
 bufrSection4List.append(np.binary_repr(int(Dewp * 10**2)+273, 16))
 
-
 ############################################################
 # 013103  - Relative Humidity (7 bits) (scale 0, %)
 bufrSection4List.append(np.binary_repr(Humi, 7))
 
 ############################################################
-# 007033  - Height Wind Sensor Above Water (12 bits) (scale 1, m)
-bufrSection4List.append(np.binary_repr(int(h_sensor_wind * 10**1), 12))
+# 007033  - Height atmp Above Water (12 bits) (scale 1, m)
+bufrSection4List.append(np.binary_repr(int(h_sensor_atmp * 10**1), 12))
 
 ############################################################
 # 008021  - Time Significance (5 bits) (scale 1, m)
@@ -342,92 +339,113 @@ bufrSection4List.append(np.binary_repr(2, 5))
 windavgScaled = (int(windavg) + 2048)
 bufrSection4List.append(np.binary_repr(windavgScaled, 12))
 
-# Bits filled: 1111 1000
-
 ############################################################
 # 011041  - Maximum Gust Speed (12 bits) (scale 1, m/s)
 bufrSection4List.append(np.binary_repr(Gust * 10, 12))
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 ############################################################
 # 004025  - Time Period of Displacement (12 bits) (scale 0, minute, reference=-2048)
 # Set to missing (=0 min)
-
-# TODO: It is write in the STDMET template to set to missing. Is "zero minutes" a missing value?
-
-windavg=0
-windavgScaled = (int(windavg) + 2048)<<(16-12) # bits 13-16 are empty
-
-string = pack(">H", windavgScaled)
-(string, unfilledByte, unfilledByteBits) = bitShift(unfilledByte, unfilledByteBits, string, 12)
-bufrSection4List.append(string)
-# Bits filled: 1111 1000
-
+bufrSection4List.append(np.binary_repr(0 + 2048, 12))
 
 ############################################################
 # 007033  - Height Wind Sensor Above Water (12 bits) (scale 1, m)
 # Set to missing (=0 m) ????????? Use insted 5 meters
 
 # TODO: I do not know to set it to missing
-
-Hsensor=5
-HsensorScaled = int(Hsensor*10**1)<<(16-12) # bits 13-16 are empty
-
-string = pack(">H", HsensorScaled)
-(string, unfilledByte, unfilledByteBits) = bitShift(unfilledByte, unfilledByteBits, string, 12)
-bufrSection4List.append(string)
-# Bits filled: 1000 0000
-
+bufrSection4List.append(np.binary_repr(int(h_sensor_wind * 10**1), 12))
 
 ############################################################
 # 002005  - Precision of Temperature (7 bits) (scale 2, K)
 
 # TODO: I tried to find the temperature precision, but I couldn't find it
 
-WtmpPrec=0.01
-WtmpPrecScaled = int(WtmpPrec*10**2)<<(8-7) # bit 8 is empty
-
-string = pack("B", WtmpPrecScaled)
-(string, unfilledByte, unfilledByteBits) = bitShift(unfilledByte, unfilledByteBits, string, 7)
-bufrSection4List.append(string)
-# Bits filled: 0000 0000
+WtmpPrecScaled = int(WtmpPrec*10**2) # bit 8 is empty
+bufrSection4List.append(np.binary_repr(WtmpPrecScaled, 7))
 
 ############################################################
 # 007063  - Depth Below Sea/Water Surface (20 bits) (scale 2, m)
 
 # TODO: Value obtained from the NDBC website
 
-Depth=0.7 #meters
-DepthScaled = int(Depth*10**2)<< (32-20) # bits 21-32 are empty, centimeters
-
-string = pack(">I", DepthScaled)
-(string, unfilledByte, unfilledByteBits) = bitShift(unfilledByte, unfilledByteBits, string, 20)
-bufrSection4List.append(string)
-# Bits filled: 1111 0000
+DepthScaled = int(Depth_atmp * 10**2) # bits 21-32 are empty, centimeters
+bufrSection4List.append(np.binary_repr(DepthScaled, 20))
 
 ############################################################
 # 022049  - Sea-surface Temperature (15 bits) (scale 2, K)
 
-WtmpScaled = int((Wtmp+273)*10**2)<< (16-15) # bit 16 is empty
+WtmpScaled = int((Wtmp+273)*10**2) # bit 16 is empty
+bufrSection4List.append(np.binary_repr(WtmpScaled, 15))
 
-string = pack(">H", WtmpScaled)
-(string, unfilledByte, unfilledByteBits) = bitShift(unfilledByte, unfilledByteBits, string, 15)
-bufrSection4List.append(string)
-# Bits filled: 1110 0000
+
+############################################################
+# 101000  - Delayed descriptor replacation
+bufrSection4List.append(np.binary_repr(0, 1))
+
+# 031001  - Delayed descriptor replacation
+bufrSection4List.append(np.binary_repr(0, 1))
+
+
+############################################################
+# 302091  (Sequence for representation of ancillary meteorological observations)
+############################################################
+############################################################
+
+# 020001 - Horizontal visibility (Operational)
+bufrSection4List.append(np.binary_repr(0, 13))
+
+# 004024 - Time period or displacement (Operational)
+bufrSection4List.append(np.binary_repr(-2048, 12))
+
+# 013011 - Total precipitation/total water equivalent (Operational)
+bufrSection4List.append(np.binary_repr(-1, 14))
+
+############################################################
+# 101000  - Delayed descriptor replacation
+bufrSection4List.append(np.binary_repr(0, 1))
+
+# 031001  - Delayed descriptor replacation
+bufrSection4List.append(np.binary_repr(0, 1))
+
+
+############################################################
+# 302082 (Radiation data)
+############################################################
+############################################################
+
+
+# 004025 - Time period or displacement (Operational)
+bufrSection4List.append(np.binary_repr(-2048, 12))
+
+
+# 014002 - Long-wave radiation, integrated over period specified (Operational)
+bufrSection4List.append(np.binary_repr(-65536 * 0.001, 17))
+
+# 014004 - Short-wave radiation, integrated over period specified (Operational)
+bufrSection4List.append(np.binary_repr(-65536 * 0.001, 17))
+
+
+# 014016 - Net radiation, integrated over period specified (Operational)
+bufrSection4List.append(np.binary_repr(-16384 * 0.0001, 15))
+
+# 014028 - Global solar radiation (high accuracy), integrated over period specified (Operational)
+bufrSection4List.append(np.binary_repr(0 * 0.01, 20))
+
+# 014029 - Diffuse solar radiation (high accuracy), integrated over period specified (Operational)
+bufrSection4List.append(np.binary_repr(0 * 0.01, 20))
+
+
+# 014030 - Direct solar radiation (high accuracy), integrated over period specified (Operational)
+bufrSection4List.append(np.binary_repr(0 * 0.01, 20))
+
+############################################################
+# 101000  - Delayed descriptor replacation
+bufrSection4List.append(np.binary_repr(0, 1))
+
+# 031001  - Delayed descriptor replacation
+bufrSection4List.append(np.binary_repr(0, 1))
+
+
 
 
 ############################################################
@@ -435,13 +453,16 @@ bufrSection4List.append(string)
 # Wave Measurements
 ############################################################
 ############################################################
+# 306039  (Sequence for representation of basic wave measurements)
+############################################################
+############################################################
+
 
 ############################################################
 # 022078  - Duration/Length of Wave Record (12 bits) (scale 0, seconds)
 
 # TODO: Value obtained from the NDBC website
 
-Duration=1200
 DurationScaled = Duration << (16-12)  # bits 13-16 are empty
 
 string = pack(">H", DurationScaled)
@@ -459,6 +480,10 @@ string = pack(">H", WvhtScaled)
 (string, unfilledByte, unfilledByteBits) = bitShift(unfilledByte, unfilledByteBits, string, 13)
 bufrSection4List.append(string)
 # Bits filled: 1111 0000
+
+
+
+# 022073 - Maximum wave height (Operational)
 
 
 ############################################################
@@ -483,26 +508,19 @@ bufrSection4List.append(string)
 # Bits filled: 1111 1100
 
 
+
+# 022076 - Direction from which dominant waves are coming (Operational)
+
+# 022077 - Directional spread of dominant wave (Operational)
+
+
 ############################################################
-# 022086  - Mean Direction from which waves are coming (9 bits) (scale 0, degree)
+# 101000  - Delayed descriptor replacation
+bufrSection4List.append(np.binary_repr(0, 1))
 
-MwdScaled = int(Mwd*10**0)<< (16-9)  # bits 10-16 are empty
+# 031001  - Delayed descriptor replacation
+bufrSection4List.append(np.binary_repr(0, 1))
 
-string = pack(">H", MwdScaled)
-(string, unfilledByte, unfilledByteBits) = bitShift(unfilledByte, unfilledByteBits, string, 9)
-bufrSection4List.append(string)
-# Bits filled: 1111 1110
-
-# Add any leftover bits to the output (as full Byte)
-if unfilledByteBits > 0:
-    bufrSection4List.append(unfilledByte)
-
-
-tmpString = "".join(bufrSection4List)
-
-# Only 3 bytes are good for length, so shift 8 bits
-bufrSection4Length = (len(tmpString) + 4) << 8
-bufrSection4 = "%s%s" % ((pack(">I", bufrSection4Length)), tmpString)
 
 
 
@@ -551,7 +569,7 @@ bufrSection0List.append(pack("B", 4))     # BUFR Version Number (currently 4)
 bufrSection0="".join(bufrSection0List)
 
 # Write message into the archive
-BUFR = open('C:\\ndbc\\bufr\\46042', 'wb')
+BUFR = open('46042', 'wb')
 
 BUFR.write(bufrSection0)
 BUFR.write(bufrString)
